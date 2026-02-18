@@ -1,0 +1,12 @@
+// Build as macOS app bundle with automatic signing
+PRODUCT_BUNDLE_IDENTIFIER = com.opentolk.app
+PRODUCT_NAME = OpenTolk
+CODE_SIGN_STYLE = Automatic
+DEVELOPMENT_TEAM = NQYX28UJH4
+CODE_SIGN_IDENTITY = Apple Development
+CODE_SIGN_ENTITLEMENTS = Resources/OpenTolk.entitlements
+INFOPLIST_FILE = Resources/Info.plist
+GENERATE_INFOPLIST_FILE = NO
+WRAPPER_EXTENSION = app
+MACOSX_DEPLOYMENT_TARGET = 14.0
+LD_RUNPATH_SEARCH_PATHS = $(inherited) @executable_path/../Frameworks

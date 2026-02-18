@@ -1,0 +1,9 @@
+.build/
+.env
+*.app
+*.dmg
+.swiftpm/
+DerivedData/
+.DS_Store
+.CLAUDE.md
+*.provisionprofile

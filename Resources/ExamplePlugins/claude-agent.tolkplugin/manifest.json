@@ -1,0 +1,36 @@
+{
+  "id": "com.opentolk.claude-agent",
+  "name": "Claude AI Agent",
+  "version": "1.0.0",
+  "description": "Route voice commands to Claude AI and paste the response",
+  "author": "OpenTolk",
+
+  "triggers": [
+    { "type": "keyword", "keywords": ["claude", "hey claude"], "position": "start", "stripTrigger": true }
+  ],
+
+  "execution": {
+    "type": "http",
+    "url": "https://api.anthropic.com/v1/messages",
+    "method": "POST",
+    "headers": {
+      "x-api-key": "{{settings.api_key}}",
+      "anthropic-version": "2023-06-01",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "model": "{{settings.model}}",
+      "max_tokens": 1024,
+      "messages": [{"role": "user", "content": "{{input}}"}]
+    },
+    "responseJSONPath": "content[0].text",
+    "timeout": 30
+  },
+
+  "output": { "mode": "paste" },
+
+  "settings": [
+    { "key": "api_key", "label": "Anthropic API Key", "type": "secret", "required": true, "placeholder": "sk-ant-..." },
+    { "key": "model", "label": "Model", "type": "select", "options": ["claude-sonnet-4-20250514", "claude-haiku-4-5-20251001"], "default": "claude-sonnet-4-20250514" }
+  ]
+}

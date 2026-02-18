@@ -1,0 +1,19 @@
+{
+  "id": "com.opentolk.memo",
+  "name": "Quick Memo",
+  "version": "1.0.0",
+  "description": "Save voice notes to ~/Documents/memos.md with timestamps",
+  "author": "OpenTolk",
+
+  "triggers": [
+    { "type": "keyword", "keywords": ["memo", "note"], "position": "start", "stripTrigger": true }
+  ],
+
+  "execution": {
+    "type": "script",
+    "command": "run.sh",
+    "timeout": 5
+  },
+
+  "output": { "mode": "notify" }
+}

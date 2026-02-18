@@ -1,0 +1,25 @@
+import Foundation
+import Sparkle
+
+final class UpdateManager: NSObject {
+    static let shared = UpdateManager()
+
+    private var updaterController: SPUStandardUpdaterController!
+
+    private override init() {
+        super.init()
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
+    }
+
+    func checkForUpdates() {
+        updaterController.checkForUpdates(nil)
+    }
+
+    var canCheckForUpdates: Bool {
+        updaterController.updater.canCheckForUpdates
+    }
+}
