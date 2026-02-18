@@ -313,7 +313,8 @@ struct PluginSetting: Codable {
 
 // MARK: - Loaded Plugin (runtime wrapper)
 
-struct LoadedPlugin {
+struct LoadedPlugin: Identifiable {
+    var id: String { manifest.id }
     let manifest: PluginManifest
     let directoryURL: URL
     var isEnabled: Bool

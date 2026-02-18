@@ -5,7 +5,6 @@ struct PluginsView: View {
     @State private var plugins: [LoadedPlugin] = []
     @State private var selectedPlugin: LoadedPlugin?
     @State private var showingSettings = false
-    @State private var showingPermissions = false
     @State private var pendingEnablePlugin: LoadedPlugin?
 
     var body: some View {
@@ -84,7 +83,6 @@ struct PluginsView: View {
                             let unapproved = PluginPermissionManager.shared.unapprovedPermissions(for: plugin)
                             if !unapproved.isEmpty {
                                 pendingEnablePlugin = plugin
-                                showingPermissions = true
                             } else {
                                 PluginManager.shared.setEnabled(true, for: plugin.manifest.id)
                                 reload()
@@ -112,25 +110,21 @@ struct PluginsView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingPermissions) {
-            if let plugin = pendingEnablePlugin {
-                PermissionApprovalView(
-                    plugin: plugin,
-                    permissions: PluginPermissionManager.shared.unapprovedPermissions(for: plugin),
-                    onApprove: {
-                        PluginPermissionManager.shared.approveAll(for: plugin)
-                        PluginManager.shared.setEnabled(true, for: plugin.manifest.id)
-                        showingPermissions = false
-                        pendingEnablePlugin = nil
-                        reload()
-                    },
-                    onDeny: {
-                        showingPermissions = false
-                        pendingEnablePlugin = nil
-                        reload()
-                    }
-                )
-            }
+        .sheet(item: $pendingEnablePlugin) { plugin in
+            PermissionApprovalView(
+                plugin: plugin,
+                permissions: PluginPermissionManager.shared.unapprovedPermissions(for: plugin),
+                onApprove: {
+                    PluginPermissionManager.shared.approveAll(for: plugin)
+                    PluginManager.shared.setEnabled(true, for: plugin.manifest.id)
+                    pendingEnablePlugin = nil
+                    reload()
+                },
+                onDeny: {
+                    pendingEnablePlugin = nil
+                    reload()
+                }
+            )
         }
     }
 
