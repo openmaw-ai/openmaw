@@ -78,10 +78,20 @@ enum PluginRunner {
             throw PluginRunnerError.missingSystemPrompt
         }
 
-        // Build messages
+        // Check if this plugin has tools
+        let hasTools = config.tools != nil && !(config.tools!.isEmpty)
+
+        // If tools are declared, use the tool-call loop (non-streaming)
+        if hasTools {
+            return try await runAIWithTools(
+                match: match, config: config, settings: settings,
+                systemPrompt: systemPrompt, history: history, aiClient: aiClient
+            )
+        }
+
+        // No tools — use simple chat or streaming
         var messages: [ChatMessage] = [ChatMessage(role: "system", content: systemPrompt)]
 
-        // Add conversation history for conversational plugins
         if config.conversational == true {
             let existingHistory = ConversationManager.shared.messages(for: match.plugin.manifest.id)
             messages.append(contentsOf: existingHistory)
@@ -89,16 +99,13 @@ enum PluginRunner {
             messages.append(contentsOf: history)
         }
 
-        // Add current user message
         let userMessage = ChatMessage(role: "user", content: match.input)
         messages.append(userMessage)
 
-        // Track in conversation manager if conversational
         if config.conversational == true {
             ConversationManager.shared.append(message: userMessage, for: match.plugin.manifest.id)
         }
 
-        // Determine if streaming
         let shouldStream = config.streaming ?? (config.conversational == true)
 
         if shouldStream {
@@ -117,7 +124,6 @@ enum PluginRunner {
                 maxTokens: config.maxTokens
             )
 
-            // Track assistant response in conversation
             if config.conversational == true {
                 ConversationManager.shared.append(
                     message: ChatMessage(role: "assistant", content: response),
@@ -127,6 +133,154 @@ enum PluginRunner {
 
             let mode = match.plugin.manifest.output?.mode ?? .paste
             return .complete(PluginResult(text: response, outputMode: mode))
+        }
+    }
+
+    // MARK: - AI with Tool-Call Loop
+
+    private static func runAIWithTools(
+        match: PluginMatch, config: AIConfig, settings: [String: String],
+        systemPrompt: String, history: [ChatMessage]?, aiClient: AIProviderClient
+    ) async throws -> PluginRunResult {
+        let maxToolRounds = 10  // safety limit
+
+        // Build tool definitions for the API
+        let toolDefs = buildToolDefinitions(from: config.tools ?? [])
+
+        // Build AIMessage array
+        var messages: [AIMessage] = [AIMessage(role: .system, content: systemPrompt, toolCalls: nil, toolCallID: nil)]
+
+        if config.conversational == true {
+            let existingHistory = ConversationManager.shared.messages(for: match.plugin.manifest.id)
+            for msg in existingHistory {
+                messages.append(AIMessage(role: AIMessage.Role(rawValue: msg.role) ?? .user, content: msg.content, toolCalls: nil, toolCallID: nil))
+            }
+        } else if let history {
+            for msg in history {
+                messages.append(AIMessage(role: AIMessage.Role(rawValue: msg.role) ?? .user, content: msg.content, toolCalls: nil, toolCallID: nil))
+            }
+        }
+
+        let userMessage = AIMessage(role: .user, content: match.input, toolCalls: nil, toolCallID: nil)
+        messages.append(userMessage)
+
+        if config.conversational == true {
+            ConversationManager.shared.append(message: ChatMessage(role: "user", content: match.input), for: match.plugin.manifest.id)
+        }
+
+        // Tool-call loop
+        for _ in 0..<maxToolRounds {
+            let response = try await aiClient.chatWithTools(
+                messages: messages,
+                tools: toolDefs,
+                model: config.model,
+                temperature: config.temperature,
+                maxTokens: config.maxTokens
+            )
+
+            switch response {
+            case .text(let text):
+                // Done — AI returned final text
+                if config.conversational == true {
+                    ConversationManager.shared.append(
+                        message: ChatMessage(role: "assistant", content: text),
+                        for: match.plugin.manifest.id
+                    )
+                }
+                let mode = match.plugin.manifest.output?.mode ?? .paste
+                return .complete(PluginResult(text: text, outputMode: mode))
+
+            case .toolCalls(let toolCalls):
+                // Add assistant message with tool calls to history
+                messages.append(AIMessage(role: .assistant, content: nil, toolCalls: toolCalls, toolCallID: nil))
+
+                // Execute each tool and add results
+                for call in toolCalls {
+                    let toolConfig = config.tools?.first(where: { $0.name == call.name })
+                    let result: String
+
+                    if let toolConfig {
+                        let toolCallInput = PluginToolRunner.ToolCall(name: call.name, arguments: call.arguments)
+                        do {
+                            let toolResult = try await PluginToolRunner.run(tool: toolConfig, call: toolCallInput, plugin: match.plugin)
+                            result = toolResult.content
+                        } catch {
+                            result = "Error: \(error.localizedDescription)"
+                        }
+                    } else {
+                        result = "Error: Unknown tool '\(call.name)'"
+                    }
+
+                    messages.append(AIMessage(role: .tool, content: result, toolCalls: nil, toolCallID: call.id))
+                }
+            }
+        }
+
+        // Exhausted max rounds — return what we have
+        let mode = match.plugin.manifest.output?.mode ?? .paste
+        return .complete(PluginResult(text: "Tool execution limit reached. Please try a simpler request.", outputMode: mode))
+    }
+
+    // MARK: - Build Tool Definitions
+
+    private static func buildToolDefinitions(from tools: [ToolConfig]) -> [AIToolDefinition] {
+        // Builtin tool descriptions and schemas
+        let builtinSchemas: [String: (description: String, parameters: [String: Any])] = [
+            "web_search": (
+                description: "Search the web for information. Returns relevant text results.",
+                parameters: [
+                    "type": "object",
+                    "properties": [
+                        "query": ["type": "string", "description": "The search query"]
+                    ],
+                    "required": ["query"]
+                ]
+            ),
+            "read_clipboard": (
+                description: "Read the current contents of the user's clipboard.",
+                parameters: [
+                    "type": "object",
+                    "properties": [:] as [String: Any]
+                ]
+            ),
+            "paste": (
+                description: "Paste text into the user's active application.",
+                parameters: [
+                    "type": "object",
+                    "properties": [
+                        "text": ["type": "string", "description": "The text to paste"]
+                    ],
+                    "required": ["text"]
+                ]
+            ),
+            "run_plugin": (
+                description: "Run another OpenTolk plugin and return its output.",
+                parameters: [
+                    "type": "object",
+                    "properties": [
+                        "plugin_id": ["type": "string", "description": "The plugin ID to run"],
+                        "input": ["type": "string", "description": "Input text for the plugin"]
+                    ],
+                    "required": ["input"]
+                ]
+            ),
+        ]
+
+        return tools.map { tool -> AIToolDefinition in
+            if tool.type == .builtin, let builtin = builtinSchemas[tool.name] {
+                return AIToolDefinition(
+                    name: tool.name,
+                    description: tool.description ?? builtin.description,
+                    parameters: tool.parameters?.value as? [String: Any] ?? builtin.parameters
+                )
+            } else {
+                // Script tool or custom
+                return AIToolDefinition(
+                    name: tool.name,
+                    description: tool.description ?? "Tool: \(tool.name)",
+                    parameters: tool.parameters?.value as? [String: Any] ?? ["type": "object", "properties": [:] as [String: Any]]
+                )
+            }
         }
     }
 
