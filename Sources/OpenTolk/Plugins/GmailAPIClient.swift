@@ -161,6 +161,26 @@ enum GmailAPIClient {
         return try await postMessage(raw: rfc2822, token: token, threadId: original.threadId)
     }
 
+    // MARK: - Archive Message
+
+    /// Archives a message by removing the INBOX label.
+    static func archiveMessage(id: String) async throws {
+        let token = try await GmailAuthManager.shared.getAccessToken()
+
+        guard let url = URL(string: "\(baseURL)/messages/\(id)/modify") else {
+            throw GmailAPIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["removeLabelIds": ["INBOX", "UNREAD"]])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try checkHTTPResponse(response, data: data)
+    }
+
     // MARK: - Helpers
 
     private static func postMessage(raw: String, token: String, threadId: String? = nil) async throws -> String {

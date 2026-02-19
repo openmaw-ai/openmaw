@@ -307,6 +307,16 @@ enum PluginRunner {
                     "required": ["to", "subject", "body"]
                 ]
             ),
+            "gmail_archive": (
+                description: "Archive an email by removing it from the inbox. The email is not deleted, just moved out of the inbox.",
+                parameters: [
+                    "type": "object",
+                    "properties": [
+                        "message_id": ["type": "string", "description": "The Gmail message ID to archive"]
+                    ],
+                    "required": ["message_id"]
+                ]
+            ),
         ]
 
         return tools.map { tool -> AIToolDefinition in

@@ -96,17 +96,28 @@ final class ConversationPanelViewModel: ObservableObject {
             rawInput: text
         )
 
+        // Show thinking indicator while waiting
+        isStreaming = true
+        let thinkingIndex = messages.count
+        messages.append(ConversationMessage(role: "assistant", text: "", isStreaming: true))
+
         Task {
             do {
                 let result = try await PluginRunner.run(match: syntheticMatch)
                 switch result {
                 case .complete(let pluginResult):
+                    messages.remove(at: thinkingIndex)
+                    isStreaming = false
                     addAssistantMessage(pluginResult.text)
                 case .stream(let stream, _):
+                    messages.remove(at: thinkingIndex)
+                    isStreaming = false
                     startStreaming(stream)
                 }
             } catch {
-                messages.append(ConversationMessage(role: "assistant", text: "Error: \(error.localizedDescription)"))
+                messages[thinkingIndex] = ConversationMessage(role: "assistant", text: "Error: \(error.localizedDescription)")
+                messages[thinkingIndex].isStreaming = false
+                isStreaming = false
             }
         }
     }

@@ -62,6 +62,9 @@ enum PluginToolRunner {
         case "gmail_send":
             return try await runGmailSend(call: call)
 
+        case "gmail_archive":
+            return try await runGmailArchive(call: call)
+
         default:
             return ToolResult(name: call.name, content: "Unknown builtin tool: \(call.name)")
         }
@@ -160,6 +163,23 @@ enum PluginToolRunner {
             return ToolResult(name: call.name, content: "Email sent successfully to \(to) (ID: \(sentId)).")
         } catch {
             return ToolResult(name: call.name, content: "Error sending email: \(error.localizedDescription)")
+        }
+    }
+
+    private static func runGmailArchive(call: ToolCall) async throws -> ToolResult {
+        guard await GmailAuthManager.shared.isConnected else {
+            return ToolResult(name: call.name, content: "Error: Gmail is not connected. Please connect Gmail in plugin settings first.")
+        }
+
+        guard let messageId = call.arguments["message_id"] as? String, !messageId.isEmpty else {
+            return ToolResult(name: call.name, content: "Error: message_id is required.")
+        }
+
+        do {
+            try await GmailAPIClient.archiveMessage(id: messageId)
+            return ToolResult(name: call.name, content: "Email archived successfully.")
+        } catch {
+            return ToolResult(name: call.name, content: "Error archiving email: \(error.localizedDescription)")
         }
     }
 
