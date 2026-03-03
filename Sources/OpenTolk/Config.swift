@@ -21,6 +21,7 @@ final class Config {
         static let configUpdatedAt = "configUpdatedAt"
         static let aiAPIKey = "aiAPIKey"
         static let aiProvider = "aiProvider"
+        static let localModel = "localModel"
     }
 
     private init() {
@@ -36,6 +37,7 @@ final class Config {
             Keys.pluginsEnabled: true,
             Keys.snippetsEnabled: true,
             Keys.hotkeyCode: HotkeyOption.rightOption.rawValue,
+            Keys.localModel: "large-v3_turbo",
         ])
     }
 
@@ -116,6 +118,11 @@ final class Config {
                 KeychainHelper.delete(key: "opentolk.aiAPIKey")
             }
         }
+    }
+
+    var localModel: String {
+        get { defaults.string(forKey: Keys.localModel) ?? "large-v3_turbo" }
+        set { defaults.set(newValue, forKey: Keys.localModel); markConfigUpdated() }
     }
 
     /// AI provider: "openai" or "anthropic"

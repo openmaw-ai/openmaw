@@ -41,6 +41,7 @@ enum TranscriptionError: LocalizedError {
     case apiError(statusCode: Int, message: String)
     case noAPIKey
     case notAvailable
+    case modelNotReady(String)
     case freeTierLimitReached(wordsUsed: Int)
     case signInRequired
 
@@ -51,6 +52,7 @@ enum TranscriptionError: LocalizedError {
         case .apiError(let code, let msg): return "API error (\(code)): \(msg)"
         case .noAPIKey: return "No API key configured"
         case .notAvailable: return "This transcription provider is not yet available"
+        case .modelNotReady(let message): return message
         case .freeTierLimitReached(let used): return "Free tier limit reached (\(used) words used)"
         case .signInRequired: return "Sign in required to use cloud transcription"
         }

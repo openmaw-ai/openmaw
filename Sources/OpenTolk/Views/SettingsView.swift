@@ -89,6 +89,8 @@ private struct TranscriptionTab: View {
     @State private var openaiAPIKey: String = ""
     @State private var showGroqKey = false
     @State private var showOpenAIKey = false
+    @State private var selectedLocalModel: String = Config.shared.localModel
+    private var localModelManager = LocalModelManager.shared
 
     var body: some View {
         Form {
@@ -195,12 +197,23 @@ private struct TranscriptionTab: View {
                 }
             case .local:
                 Section("Local (On-Device)") {
-                    Text("Coming soon. On-device Whisper transcription.")
-                        .foregroundStyle(.secondary)
+                    Text("Free forever. No limits. No internet required after download.")
+                        .foregroundStyle(.green)
                         .font(.callout)
-                    Text("Free forever. No limits. No internet required.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+
+                    Picker("Model", selection: $selectedLocalModel) {
+                        ForEach(LocalModelManager.availableModels) { model in
+                            Text("\(model.displayName)  (\(model.sizeDescription))")
+                                .tag(model.id)
+                        }
+                    }
+                    .disabled(localModelIsSettingUp)
+                    .onChange(of: selectedLocalModel) { _, newValue in
+                        Config.shared.localModel = newValue
+                        localModelManager.modelSelectionChanged()
+                    }
+
+                    localModelStateView
                 }
             }
         }
@@ -210,6 +223,93 @@ private struct TranscriptionTab: View {
             selectedProvider = Config.shared.selectedProvider
             groqAPIKey = KeychainHelper.load(key: "groq_api_key") ?? ""
             openaiAPIKey = KeychainHelper.load(key: "openai_api_key") ?? ""
+            selectedLocalModel = Config.shared.localModel
+        }
+    }
+
+    private var localModelIsSettingUp: Bool {
+        switch localModelManager.modelState {
+        case .downloading, .compiling: return true
+        default: return false
+        }
+    }
+
+    @ViewBuilder
+    private var localModelStateView: some View {
+        switch localModelManager.modelState {
+        case .notDownloaded:
+            Button("Set Up Model") {
+                localModelManager.setupModel()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+
+        case .downloading(let progress):
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Downloading model...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(Int(progress * 100))%")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("Cancel") {
+                        localModelManager.cancelSetup()
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.red)
+                    .font(.caption)
+                }
+                ProgressView(value: progress, total: 1.0)
+                    .progressViewStyle(.linear)
+            }
+
+        case .compiling:
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Compiling model for your hardware...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Text("This is a one-time process and may take a few minutes.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+        case .ready:
+            HStack {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                Text("Model ready.")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+                Spacer()
+                Button("Delete") {
+                    localModelManager.deleteModel()
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.red)
+                .font(.caption)
+            }
+
+        case .error(let message):
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+                Button("Retry") {
+                    localModelManager.setupModel()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
         }
     }
 }
