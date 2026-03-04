@@ -229,7 +229,7 @@ private struct TranscriptionTab: View {
 
     private var localModelIsSettingUp: Bool {
         switch localModelManager.modelState {
-        case .downloading, .compiling: return true
+        case .downloading, .compiling, .warming: return true
         default: return false
         }
     }
@@ -277,6 +277,16 @@ private struct TranscriptionTab: View {
                 Text("This is a one-time process and may take a few minutes.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+            }
+
+        case .warming:
+            HStack {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Loading model...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
             }
 
         case .ready:
