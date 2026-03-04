@@ -154,6 +154,6 @@ final class Config {
     }
 
     var effectiveLanguage: String {
-        return language
+        return language == "auto" ? "" : language
     }
 }

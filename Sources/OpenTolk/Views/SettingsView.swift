@@ -382,8 +382,14 @@ private struct AudioTab: View {
             }
 
             Section("Language") {
-                TextField("Language code (e.g., en, es, fr, de)", text: $language)
-                    .textFieldStyle(.roundedBorder)
+                Picker("Language", selection: $language) {
+                    ForEach(WhisperLanguage.all, id: \.code) { lang in
+                        Text(lang.name).tag(lang.code)
+                    }
+                }
+                .onChange(of: language) { _, newValue in
+                    Config.shared.language = newValue
+                }
             }
         }
         .formStyle(.grouped)

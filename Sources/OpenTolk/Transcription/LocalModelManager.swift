@@ -208,8 +208,10 @@ final class LocalModelManager {
         }
 
         let language = Config.shared.effectiveLanguage
+        let hasExplicitLanguage = !language.isEmpty
         let options = DecodingOptions(
-            language: language,
+            language: hasExplicitLanguage ? language : nil,
+            detectLanguage: hasExplicitLanguage ? false : true,
             wordTimestamps: false
         )
 
